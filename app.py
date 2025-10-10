@@ -13,15 +13,15 @@ st.set_page_config(page_title="Machine Learning Regression App", layout="wide")
 
 st.title("Interactive Machine Learning Regression App")
 # App description
-st.markdown("""\
-# 🧠 Interactive Machine Learning Regression App\
-\
-Welcome to the **ML Regression Playground**!  \
-This app allows you to **upload your CSV dataset** (with the **first row as headers**)  \
-and explore data, preprocess it, and train multiple regression models — all interactively.\
+st.write("""\
+# 🧠 Interactive Machine Learning Regression App\n \
+\n \
+Welcome to the **ML Regression Playground**!  \n \
+This app allows you to **upload your CSV dataset** (with the **first row as headers**)  \n \
+and explore data, preprocess it, and train multiple regression models — all interactively.\n \
 \
 ---\
-""", unsafe_allow_html=True)
+""")
 
 # --- File Upload ---
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
@@ -29,10 +29,12 @@ uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
     
-    tab1, tab2, tab3 = st.tabs(["📋 Data Preview", "📊 Summary", "📈 Plots"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Data Preview", "Info" , "📊 Summary", "📈 Plots"])
     with tab1:
         st.dataframe(df)
     with tab2:
+        st.write(df.info())
+    with tab3:
         st.write(df.describe().T)
     
 
