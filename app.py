@@ -33,7 +33,7 @@ if uploaded_file is not None:
     with tab1:
         st.dataframe(df)
     with tab2:
-        st.write(df.describe())
+        st.write(df.describe().T)
     
 
     # --- Select Inputs and Output ---
