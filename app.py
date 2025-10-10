@@ -13,14 +13,14 @@ st.set_page_config(page_title="Machine Learning Regression App", layout="wide")
 
 st.title("Interactive Machine Learning Regression App")
 # App description
-st.markdown("""
-# 🧠 Interactive Machine Learning Regression App
-
-Welcome to the **ML Regression Playground**!  
-This app allows you to **upload your CSV dataset** (with the **first row as headers**)  
-and explore data, preprocess it, and train multiple regression models — all interactively.
-
----
+st.markdown("""\
+# 🧠 Interactive Machine Learning Regression App\
+\
+Welcome to the **ML Regression Playground**!  \
+This app allows you to **upload your CSV dataset** (with the **first row as headers**)  \
+and explore data, preprocess it, and train multiple regression models — all interactively.\
+\
+---\
 """, unsafe_allow_html=True)
 
 # --- File Upload ---
