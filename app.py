@@ -49,7 +49,7 @@ def compute_metrics(y_true, y_pred):
     return {
         "r2": float(r2_score(y_true, y_pred)),
         "mse": float(mean_squared_error(y_true, y_pred)),
-        "rmse": float(mean_squared_error(y_true, y_pred, squared=False)),
+        "rmse": float(mean_squared_error(y_true, y_pred)),
         "mae": float(mean_absolute_error(y_true, y_pred))
     }
 
