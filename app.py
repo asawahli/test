@@ -11,15 +11,30 @@ from sklearn.svm import SVR
 # --- Streamlit Page Config ---
 st.set_page_config(page_title="Machine Learning Regression App", layout="wide")
 
-st.title("📊 Machine Learning Regression App")
+st.title("Interactive Machine Learning Regression App")
+# App description
+st.markdown("""
+# 🧠 Interactive Machine Learning Regression App
+
+Welcome to the **ML Regression Playground**!  
+This app allows you to **upload your CSV dataset** (with the **first row as headers**)  
+and explore data, preprocess it, and train multiple regression models — all interactively.
+
+---
+""", unsafe_allow_html=True)
 
 # --- File Upload ---
 uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
-    st.write("### Preview of Data")
-    st.dataframe(df.head())
+    
+    tab1, tab2, tab3 = st.tabs(["📋 Data Preview", "📊 Summary", "📈 Plots"])
+    with tab1:
+        st.dataframe(df)
+    with tab2:
+        st.write(df.describe())
+    
 
     # --- Select Inputs and Output ---
     with st.expander("⚙️ Select Model Inputs"):
