@@ -321,7 +321,7 @@ with st.container():
             _, col, _ = st.columns([1, 2, 1])
             col.pyplot(fig)
     with tab6:
-        _,col_=st.columns([1,2,1])
+        _,col,_=st.columns([1,2,1])
         fig, ax = plt.subplots()
         sns.heatmap(df.corr(), ax=ax, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0)
         col.pyplot(fig)
