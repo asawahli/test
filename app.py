@@ -198,7 +198,7 @@ with st.container():
             "📈 Distributions Plots",
             "Features vs Target",
             "Customize Plot",
-            "Corrulation Plot"
+            "Correlation Plot"
         ]
     )
 
@@ -323,7 +323,7 @@ with st.container():
     with tab6:
         _,col,_=st.columns([1,2,1])
         fig, ax = plt.subplots()
-        sns.heatmap(df.corr(), ax=ax, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0)
+        sns.heatmap(df.corr(), ax=ax, annot=True, cmap='vlag', vmin=-1, vmax=1, center=0)
         col.pyplot(fig)
 
 
