@@ -321,8 +321,8 @@ with st.container():
             _, col, _ = st.columns([1, 2, 1])
             col.pyplot(fig)
     with tab6:
-        
-        st.pyplot(sns.heatmap(df.corr(), annot=True))
+        fig = sns.heatmap(df.corr())
+        st.pyplot(fig)
 
 
 st.markdown("---")
