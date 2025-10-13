@@ -198,6 +198,7 @@ with st.container():
             "📈 Distributions Plots",
             "Features vs Target",
             "Customize Plot",
+            "Corrulation Plot"
         ]
     )
 
@@ -297,8 +298,6 @@ with st.container():
 
         xlabel = cols[0].text_input("X Label", x_data)
         ylabel = cols[1].text_input("Y Label", y_data)
-        cols[2].write("as")
-        cols[3].write("asas")
 
         with st.container(border=False):
             cols = st.columns(4)
@@ -321,6 +320,8 @@ with st.container():
             )
             _, col, _ = st.columns([1, 2, 1])
             col.pyplot(fig)
+    with tab6:
+        sns.heatmap(df.corr(), annot=True)
 
 
 st.markdown("---")
