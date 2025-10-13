@@ -191,7 +191,7 @@ df = st.session_state.df.copy()
 # --- Data exploration container with tabs ---
 with st.container():
     st.subheader("Data Exploration")
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
         [
             "📋 Data Preview",
             "📊 Summary Stats",
