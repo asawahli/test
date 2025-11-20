@@ -16,6 +16,7 @@ import seaborn as sns
 import time
 import pickle
 from scipy import stats
+from radar import radar_factory
 
 st.set_page_config(page_title="Interactive ML Regression App", layout="wide")
 
@@ -31,6 +32,20 @@ def init_session_state():
     if "last_train" not in st.session_state:
         st.session_state.last_train = None
 
+
+# Constants
+markers = {
+    "Default": None,
+    "Circle": "o",
+    "Point": ".",
+    "Pixel": ",",
+    "Square": "s",
+    "Pentagon": "p",
+    "Star": "*",
+    "Plus": "+",
+    "X": "x",
+    "Dimond": "D",
+}
 
 params = {
     "xtick.top": True,
@@ -90,15 +105,16 @@ def compute_metrics(y_true, y_pred):
     }
 
 
-def plot_predictions(y_true, y_pred, model_name):
+def plot_predictions(y_true, y_pred, model_name, type="Test"):
     fig, ax = plt.subplots()
     ax.scatter(y_true, y_pred, alpha=0.6)
     lims = [min(min(y_true), min(y_pred)), max(max(y_true), max(y_pred))]
     ax.plot(lims, lims, linestyle="--", color="red")
     ax.set_xlabel("Actual")
     ax.set_ylabel("Predicted")
-    ax.set_title(f"{model_name} — Predicted vs Actual")
-    st.pyplot(fig)
+    ax.set_title(f"{model_name} — Predicted vs Actual ({type})")
+    return fig
+    # st.pyplot(fig)
 
 
 def plot_residuals(y_true, y_pred, model_name):
@@ -106,7 +122,8 @@ def plot_residuals(y_true, y_pred, model_name):
     fig, ax = plt.subplots()
     sns.histplot(residuals, kde=True, ax=ax)
     ax.set_title(f"{model_name} — Residuals Distribution")
-    st.pyplot(fig)
+    # st.pyplot(fig)
+    return fig
 
 
 def feature_importances_if_any(model, feature_names):
@@ -127,12 +144,78 @@ def feature_importances_if_any(model, feature_names):
             st.dataframe(
                 fi.reset_index().rename(columns={"index": "feature", 0: "importance"})
             )
-            fig, ax = plt.subplots(figsize=(6, max(3, len(fi) * 0.25)))
+            fig, ax = plt.subplots(figsize=(6, max(3, len(fi) * 0.3)))
             fi.plot(kind="barh", ax=ax)
             ax.invert_yaxis()
-            st.pyplot(fig)
-    except Exception:
-        pass
+            # st.pyplot(fig)
+
+            fig2, ax2 = plt.subplots(
+                figsize=(5, 5), subplot_kw=dict(projection="radar")
+            )
+
+            N = len(fi.index)
+            theta = radar_factory(N, frame="polygon")
+            fig2.subplots_adjust(top=0.85, bottom=0.05)
+            ax2.set_rgrids([0.2, 0.4, 0.6, 0.8])
+            # # for d in case_data:
+            line = ax2.plot(theta, fi.to_list())
+            ax2.fill(theta, fi.to_list(), alpha=0.25, label="_nolegend_")
+            ax2.set_varlabels(feature_names)
+            # st.pyplot(fig2)
+
+        else:
+            fig, fig2 = (None, None)
+        return fig, fig2
+    except:
+        return None, None
+
+
+@st.fragment
+def update_summary():
+    for xx in ["train", "test"]:
+        st.subheader(
+            f"\t\t _Model summary for :blue[{xx.capitalize()}] data_",
+            divider="blue",
+        )
+        rows = []
+        for k, v in st.session_state.models.items():
+            # st.json(k)
+            # st.json(v)
+            row = {
+                "model_key": k,
+                "type": v.get("type"),
+                "r2": v[f"metrics_{xx}"].get("r2"),
+                "mse": v[f"metrics_{xx}"].get("mse"),
+                "rmse": v[f"metrics_{xx}"].get("rmse"),
+                "mae": v[f"metrics_{xx}"].get("mae"),
+                "params": str(v.get("params")),
+                "stored_at": pd.to_datetime(v.get("timestamp"), unit="s"),
+            }
+            rows.append(row)
+        summary_df = pd.DataFrame(rows).sort_values(by="r2", ascending=False)
+        st.session_state[f"summary_{xx}"] = summary_df
+        st.dataframe(st.session_state[f"summary_{xx}"].reset_index(drop=True))
+
+
+@st.dialog(" ")
+def store_model():
+    if st.session_state.get("last_train") is None:
+        st.warning(
+            "No model trained in this session to store. Train first, then store."
+        )
+    else:
+        key = model_name_input
+        # store a copy of the pipeline and metrics
+        entry = {
+            "type": st.session_state.last_train.get("type"),
+            "pipeline": st.session_state.last_train.get("pipeline"),
+            "metrics_test": st.session_state.last_train.get("metrics_test"),
+            "metrics_train": st.session_state.last_train.get("metrics_train"),
+            "params": st.session_state.last_train.get("params"),
+            "timestamp": st.session_state.last_train.get("timestamp"),
+        }
+        st.session_state.models[key] = entry
+        st.success(f"Stored model under key: '{key}'")
 
 
 # --- Initialize session state ---
@@ -187,6 +270,7 @@ if st.session_state.df is None:
     st.stop()
 
 df = st.session_state.df.copy()
+df = df.select_dtypes(include=[np.number])
 
 # --- Data exploration container with tabs ---
 with st.container():
@@ -198,7 +282,7 @@ with st.container():
             "📈 Distributions Plots",
             "Features vs Target",
             "Customize Plot",
-            "Correlation Plot"
+            "Corrolation Plot",
         ]
     )
 
@@ -298,6 +382,9 @@ with st.container():
 
         xlabel = cols[0].text_input("X Label", x_data)
         ylabel = cols[1].text_input("Y Label", y_data)
+        markersize = cols[2].number_input("Marker Size", value=None)
+        markershape = cols[3].selectbox("marker", markers.keys(), 0)
+        alpha = cols[0].slider("transparency ", 0, 100, 100, 1) / 100
 
         with st.container(border=False):
             cols = st.columns(4)
@@ -305,25 +392,51 @@ with st.container():
             xmax = cols[1].number_input("X axis max", value=None)
             ymin = cols[2].number_input("Y axis min", value=None)
             ymax = cols[3].number_input("Y axis max", value=None)
-        if st.button("Plot"):
-            fig = customize_plot(
-                df,
-                xdata=x_data,
-                ydata=y_data,
-                scatter_kwargs={"color": color, "edgecolor": edgecolor},
-                ax_kwargs={
-                    "xlabel": xlabel,
-                    "ylabel": ylabel,
-                    "xlim": (xmin, xmax),
-                    "ylim": (ymin, ymax),
-                },
-            )
-            _, col, _ = st.columns([1, 2, 1])
-            col.pyplot(fig)
+        # if st.button("Plot"):
+        fig = customize_plot(
+            df,
+            xdata=x_data,
+            ydata=y_data,
+            scatter_kwargs={
+                "color": color,
+                "edgecolor": edgecolor,
+                "s": markersize,
+                "marker": markers[markershape],
+                "alpha": alpha,
+            },
+            ax_kwargs={
+                "xlabel": xlabel,
+                "ylabel": ylabel,
+                "xlim": (xmin, xmax),
+                "ylim": (ymin, ymax),
+            },
+        )
+        _, col, _ = st.columns([1, 2, 1])
+        col.pyplot(fig)
     with tab6:
-        _,col,_=st.columns([1,2,1])
+        corr_method = st.selectbox("Method ", ["pearson", "kendall", "spearman"])
+        cmap_dic = {
+            "vlag": "vlag",
+            "coolwarm": "coolwarm",
+            "Spectral": "Spectral",
+            "Red, Blue": "RdBu",
+            "Red, Yellow, Blue": "RdYlBu",
+            "Red, Yellow Green": "RdYlGn",
+        }
+        cmap_select = st.selectbox("Color map", cmap_dic.keys(), 0)
+
+        _, col, _ = st.columns([1, 2, 1])
         fig, ax = plt.subplots()
-        sns.heatmap(df.corr(), ax=ax, annot=True, cmap='vlag', vmin=-1, vmax=1, center=0)
+        sns.heatmap(
+            df.corr(method=corr_method),
+            ax=ax,
+            annot=True,
+            # cmap="vlag",
+            cmap=cmap_dic[cmap_select],
+            vmin=-1,
+            vmax=1,
+            center=0,
+        )
         col.pyplot(fig)
 
 
@@ -348,10 +461,41 @@ with st.container():
         ],
     )
 
+    feature_cols = [col for col in df.columns if col in feature_cols]
+
     if not feature_cols:
         st.warning(
             "No feature columns selected. Select at least one feature column to proceed."
         )
+    # Missing values Handling
+    helper_ma = """
+            ### Missing Value Handling Options
+
+            | Option | Description | When to Use |
+            |-------|-------------|-------------|
+            | **Drop rows (remove missing)** | Remove rows containing missing cells | When missing data is very small (less than 5%) |
+            | **Fill with Median** | Replace missing values with the column median | Best for **skewed numerical** data |
+            | **Fill with Mean** | Replace missing values with the column mean | Good for **normally distributed** numeric data |
+            | **Fill with Mode** | Replace missing values with the most frequent value | Best for **categorical** features |
+            | **Fill with Zero** | Replace missing values with 0 | When zero is meaningful (e.g., counts or indicators) |
+            | **Forward Fill (ffill)** | Carry the previous value forward | Good for **time-series** or sequential data |
+            | **Backward Fill (bfill)** | Use the next value to fill missing entries | Also used in **time-series** data |
+        """
+    missing_methods = {
+        "Drop rows": lambda df: df.dropna(),
+        "Fill with Median": lambda df: df.fillna(df.median()),
+        "Fill with Mean": lambda df: df.fillna(df.mean()),
+        "Fill with Mode": lambda df: df.fillna(df.mode().iloc[0]),
+        "Fill with Zero": lambda df: df.fillna(0),
+        "Forward Fill": lambda df: df.fillna(method="ffill"),
+        "Backward Fill": lambda df: df.fillna(method="bfill"),
+    }
+    missing_choice = st.selectbox(
+        "Missing Values Fill",
+        missing_methods.keys(),
+        0,
+        help=helper_ma,
+    )
 
     test_size = st.slider(
         "Test set size (fraction)", min_value=0.05, max_value=0.5, value=0.2, step=0.05
@@ -361,8 +505,9 @@ with st.container():
 
     if apply_split:
         # Keep only numeric features automatically (imputer will handle missing)
-        X = df[feature_cols]
-        y = df[target_col]
+        df_temp = missing_methods[missing_choice](df)
+        X = df_temp[feature_cols]
+        y = df_temp[target_col]
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=test_size, random_state=int(random_state)
         )
@@ -426,7 +571,7 @@ with st.container():
     )
 
     # dynamic hyperparameters
-    st.markdown("**Hyperparameters**")
+    st.markdown(":red[_**Hyperparameters**_]")
     # Defaults
     params = {}
     if model_type == "Linear Regression":
@@ -472,96 +617,119 @@ with st.container():
     model_name_input = st.text_input(
         "Model name (used as key when storing). Default = selected algorithm",
         value=model_type,
+        help="Note: Exciting stored will be overwritten",
     )
 
     # Buttons: Train, Store, Delete
     col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
-    with col1:
-        if st.button("Train model (fit & show metrics)"):
-            # build the model object
-            try:
-                X_train = split["X_train"][split["feature_cols"]]
-                X_test = split["X_test"][split["feature_cols"]]
-                y_train = split["y_train"]
-                y_test = split["y_test"]
+    # with col1:
+    if col1.button("Train model (fit & show metrics)"):
+        # build the model object
+        try:
+            X_train = split["X_train"][split["feature_cols"]]
+            X_test = split["X_test"][split["feature_cols"]]
+            y_train = split["y_train"]
+            y_test = split["y_test"]
 
-                if model_type == "Linear Regression":
-                    model_obj = LinearRegression()
-                elif model_type == "Ridge":
-                    model_obj = Ridge(alpha=params["alpha"])
-                elif model_type == "Lasso":
-                    model_obj = Lasso(alpha=params["alpha"], max_iter=10000)
-                elif model_type == "Random Forest":
-                    model_obj = RandomForestRegressor(
-                        n_estimators=params["n_estimators"],
-                        max_depth=params["max_depth"],
-                        min_samples_leaf=params["min_samples_leaf"],
-                        random_state=int(split.get("random_state", 42)),
-                    )
-                elif model_type == "SVR":
-                    model_obj = SVR(C=params["C"], kernel=params["kernel"])
-
-                pipeline = build_pipeline(model_obj, use_scaler=use_scaler)
-                pipeline.fit(X_train, y_train)
-                preds = pipeline.predict(X_test)
-                metrics = compute_metrics(y_test, preds)
-
-                st.success("Model trained.")
-                st.markdown("**Metrics on test set**")
-                st.json(metrics)
-
-                # Plots
-                plot_predictions(y_test, preds, model_name_input)
-                plot_residuals(y_test, preds, model_name_input)
-                # Feature importances
-                feature_importances_if_any(pipeline, split["feature_cols"])
-
-                # keep last trained model in session state temporarily
-                st.session_state.last_train = {
-                    "name": model_name_input,
-                    "type": model_type,
-                    "pipeline": pipeline,
-                    "metrics": metrics,
-                    "params": params,
-                    "timestamp": time.time(),
-                }
-
-            except Exception as e:
-                st.error(f"Error during training: {e}")
-
-    with col2:
-        if st.button("Store model (save into session dictionary)"):
-            if st.session_state.get("last_train") is None:
-                st.warning(
-                    "No model trained in this session to store. Train first, then store."
+            if model_type == "Linear Regression":
+                model_obj = LinearRegression()
+            elif model_type == "Ridge":
+                model_obj = Ridge(alpha=params["alpha"])
+            elif model_type == "Lasso":
+                model_obj = Lasso(alpha=params["alpha"], max_iter=10000)
+            elif model_type == "Random Forest":
+                model_obj = RandomForestRegressor(
+                    n_estimators=params["n_estimators"],
+                    max_depth=params["max_depth"],
+                    min_samples_leaf=params["min_samples_leaf"],
+                    random_state=int(split.get("random_state", 42)),
                 )
-            else:
-                key = model_name_input
-                # store a copy of the pipeline and metrics
-                entry = {
-                    "type": st.session_state.last_train.get("type"),
-                    "pipeline": st.session_state.last_train.get("pipeline"),
-                    "metrics": st.session_state.last_train.get("metrics"),
-                    "params": st.session_state.last_train.get("params"),
-                    "timestamp": st.session_state.last_train.get("timestamp"),
-                }
-                st.session_state.models[key] = entry
-                st.success(f"Stored model under key: '{key}'")
+            elif model_type == "SVR":
+                model_obj = SVR(C=params["C"], kernel=params["kernel"])
 
-    with col3:
-        if st.button("Delete stored model"):
-            key_to_delete = st.selectbox(
-                "Select stored model key to delete",
-                options=list(st.session_state.models.keys()) or ["(none)"],
+            pipeline = build_pipeline(model_obj, use_scaler=use_scaler)
+            pipeline.fit(X_train, y_train)
+            preds = pipeline.predict(X_test)
+            preds_train = pipeline.predict(X_train)
+
+            # Meterics for Train
+            metrics_train = compute_metrics(y_train, preds_train)
+            metrics_test = compute_metrics(y_test, preds)
+
+            st.success("Model trained.")
+            cols = st.columns(2)
+            cols[0].markdown("**Metrics on train set**")
+            cols[0].json(metrics_train)
+            cols[1].markdown("**Metrics on test set**")
+            cols[1].json(metrics_test)
+            # st.dataframe(metrics, "content")
+
+            # Plots
+            fig_ptrain = plot_predictions(
+                y_train, preds_train, model_name_input, type="Train"
             )
-            # small confirm button
-            if key_to_delete != "(none)":
-                if st.button("Confirm delete"):
-                    if key_to_delete in st.session_state.models:
-                        del st.session_state.models[key_to_delete]
-                        st.success(f"Deleted model '{key_to_delete}'.")
-                    else:
-                        st.warning("Key not found (it may have been deleted already).")
+            fig_ptest = plot_predictions(y_test, preds, model_name_input, type="Test")
+            fig_r = plot_residuals(y_test, preds, model_name_input)
+            cols = st.columns(3)
+            cols[0].pyplot(fig_ptrain)
+            cols[1].pyplot(fig_ptest)
+            cols[2].pyplot(fig_r)
+
+            # Feature importances
+            fig_f, fig_rad = feature_importances_if_any(pipeline, split["feature_cols"])
+            if fig_f is not None:
+                _, col11, col22, _ = st.columns([1, 1, 1, 1])
+                col11.pyplot(fig_f)
+                col22.pyplot(fig_rad)
+
+            # keep last trained model in session state temporarily
+            st.session_state.last_train = {
+                "name": model_name_input,
+                "type": model_type,
+                "pipeline": pipeline,
+                "metrics_test": metrics_test,
+                "metrics_train": metrics_train,
+                "params": params,
+                "timestamp": time.time(),
+            }
+
+        except Exception as e:
+            st.error(f"Error during training: {e}")
+    col2.button("Store model (save into session dictionary)", on_click=store_model)
+    # with col2:
+    #     if st.button("Store model (save into session dictionary)"):
+    #         if st.session_state.get("last_train") is None:
+    #             st.warning(
+    #                 "No model trained in this session to store. Train first, then store."
+    #             )
+    #         else:
+    #             key = model_name_input
+    #             # store a copy of the pipeline and metrics
+    #             entry = {
+    #                 "type": st.session_state.last_train.get("type"),
+    #                 "pipeline": st.session_state.last_train.get("pipeline"),
+    #                 "metrics_test": st.session_state.last_train.get("metrics_test"),
+    #                 "metrics_train": st.session_state.last_train.get("metrics_train"),
+    #                 "params": st.session_state.last_train.get("params"),
+    #                 "timestamp": st.session_state.last_train.get("timestamp"),
+    #             }
+    #             st.session_state.models[key] = entry
+    #             st.success(f"Stored model under key: '{key}'")
+
+    # with col3:
+    #     if st.button("Delete stored model"):
+    #         key_to_delete = st.selectbox(
+    #             "Select stored model key to delete",
+    #             options=list(st.session_state.models.keys()) or ["(none)"],
+    #         )
+    #         # small confirm button
+    #         if key_to_delete != "(none)":
+    #             if st.button("Confirm delete"):
+    #                 if key_to_delete in st.session_state.models:
+    #                     del st.session_state.models[key_to_delete]
+    #                     st.success(f"Deleted model '{key_to_delete}'.")
+    #                 else:
+    #                     st.warning("Key not found (it may have been deleted already).")
 
     with col4:
         if st.button("Download last trained model (pickle)"):
@@ -592,28 +760,49 @@ with st.container():
         )
     else:
         # Build summary DataFrame for display
-        rows = []
-        for k, v in st.session_state.models.items():
-            row = {
-                "model_key": k,
-                "type": v.get("type"),
-                "r2": v["metrics"].get("r2"),
-                "mse": v["metrics"].get("mse"),
-                "rmse": v["metrics"].get("rmse"),
-                "mae": v["metrics"].get("mae"),
-                "params": str(v.get("params")),
-                "stored_at": pd.to_datetime(v.get("timestamp"), unit="s"),
-            }
-            rows.append(row)
-        summary_df = pd.DataFrame(rows).sort_values(by="r2", ascending=False)
-        st.dataframe(summary_df.reset_index(drop=True))
+        # update_summary()
+        for xx in ["train", "test"]:
+            st.subheader(
+                f"\t\t _Model summary for :blue[{xx.capitalize()}] data_",
+                divider="blue",
+            )
+            rows = []
+            for k, v in st.session_state.models.items():
+                # st.json(k)
+                # st.json(v)
+                row = {
+                    "model_key": k,
+                    "type": v.get("type"),
+                    "r2": v[f"metrics_{xx}"].get("r2"),
+                    "mse": v[f"metrics_{xx}"].get("mse"),
+                    "rmse": v[f"metrics_{xx}"].get("rmse"),
+                    "mae": v[f"metrics_{xx}"].get("mae"),
+                    "params": str(v.get("params")),
+                    "stored_at": pd.to_datetime(v.get("timestamp"), unit="s"),
+                }
+                rows.append(row)
+            summary_df = pd.DataFrame(rows).sort_values(by="r2", ascending=False)
+            st.session_state[f"summary_{xx}"] = summary_df
+            st.dataframe(st.session_state[f"summary_{xx}"].reset_index(drop=True))
+        col1, col2, col3 = st.columns(3)
+        key_to_delete = col1.selectbox(
+            "Delete model", options=list(st.session_state.models.keys())
+        )
+        if col2.button(
+            "Delete",
+        ):
+            del st.session_state.models[key_to_delete]
+            st.rerun()
+            col3.success(f"Deleted model '{key_to_delete}'.")
+            # update_summary()
 
         st.markdown("**Compare models visually (R²)**")
         fig, ax = plt.subplots(figsize=(8, max(3, len(summary_df) * 0.4)))
         sns.barplot(x="r2", y="model_key", data=summary_df, ax=ax)
         ax.set_xlabel("R²")
         ax.set_ylabel("Model key")
-        st.pyplot(fig)
+        _, col, _ = st.columns([1, 2, 1])
+        col.pyplot(fig)
 
 st.markdown("---")
 st.caption(
